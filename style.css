@@ -13,7 +13,7 @@ html, body {
   height: 100%;
   height: 100dvh;
   overflow: hidden;
-  background-color: #0b1120;
+  background-color: #030712;
   font-family: 'Outfit', sans-serif;
   color: #fff;
   display: flex;
@@ -28,7 +28,7 @@ html, body {
   height: 100%;
   height: 100dvh;
   max-width: 460px; /* fills mobile, nicely contained on larger tablets/desktops */
-  background: #70c5ce;
+  background: #090d16;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -36,8 +36,8 @@ html, body {
 
 @media (min-width: 601px) {
   #game-wrapper {
-    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7), 0 0 0 3px rgba(255, 255, 255, 0.1);
-    border-radius: 20px;
+    box-shadow: 0 25px 70px rgba(0, 0, 0, 0.9), 0 0 0 2px rgba(255, 255, 255, 0.08);
+    border-radius: 22px;
     height: 94vh;
   }
 }
@@ -47,6 +47,7 @@ html, body {
   height: 100%;
   display: block;
   cursor: pointer;
+  background-color: #090d16;
 }
 
 /* Top HUD */
@@ -168,15 +169,15 @@ html, body {
   pointer-events: none;
 }
 
-/* Modal Scorecard */
+/* Modal Scorecard (Dark Glassmorphism) */
 .modal-card {
   width: 100%;
   max-width: 320px;
-  background: #ffffff;
-  color: #0f172a;
+  background: #0f172a;
+  color: #f8fafc;
   border-radius: 24px;
   padding: 24px 20px;
-  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.4), 0 0 0 3px #f59e0b;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7), 0 0 0 2px #3b82f6;
   text-align: center;
   display: flex;
   flex-direction: column;
@@ -199,7 +200,7 @@ html, body {
 .gameover-heading {
   font-size: 28px;
   font-weight: 900;
-  color: #ef4444;
+  color: #f43f5e;
   letter-spacing: 1px;
 }
 
@@ -212,13 +213,13 @@ html, body {
 
 #medal-emoji {
   font-size: 42px;
-  filter: drop-shadow(0 4px 8px rgba(0,0,0,0.15));
+  filter: drop-shadow(0 4px 10px rgba(245, 158, 11, 0.4));
 }
 
 #medal-text {
   font-size: 13px;
   font-weight: 700;
-  color: #64748b;
+  color: #94a3b8;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -228,8 +229,8 @@ html, body {
   align-items: center;
   justify-content: space-around;
   width: 100%;
-  background: #f8fafc;
-  border: 1.5px solid #e2e8f0;
+  background: #1e293b;
+  border: 1.5px solid #334155;
   border-radius: 16px;
   padding: 12px 16px;
 }
@@ -244,20 +245,20 @@ html, body {
 .stat-label {
   font-size: 11px;
   font-weight: 800;
-  color: #94a3b8;
+  color: #64748b;
   letter-spacing: 0.5px;
 }
 
 .stat-number {
   font-size: 32px;
   font-weight: 900;
-  color: #0f172a;
+  color: #ffffff;
 }
 
 .stat-divider {
   width: 1px;
   height: 38px;
-  background: #e2e8f0;
+  background: #334155;
 }
 
 .record-tag {

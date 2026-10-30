@@ -1,4 +1,4 @@
-// Flappy Face vs Rexona - Mobile Fullscreen Engine
+// Flappy Face vs Nivea - Dark Edition (Mobile Fullscreen Engine)
 const canvas = document.getElementById('game-canvas');
 const ctx = canvas.getContext('2d');
 
@@ -29,7 +29,7 @@ function resizeCanvas() {
   const h = container.clientHeight || window.innerHeight;
   
   CANVAS_WIDTH = 360;
-  // Calculate vertical height to match mobile aspect ratio
+  // Dynamic height adaptation for modern phones (16:9 up to 21:9)
   CANVAS_HEIGHT = Math.max(580, Math.min(800, Math.round(CANVAS_WIDTH * (h / w))));
   GROUND_Y = CANVAS_HEIGHT - 90;
 
@@ -46,48 +46,28 @@ playerImg.src = 'assets/player.png';
 let isPlayerLoaded = false;
 playerImg.onload = () => { isPlayerLoaded = true; };
 
-const rexonaImg = new Image();
-rexonaImg.src = 'assets/rexona.png';
-let isRexonaLoaded = false;
-rexonaImg.onload = () => { isRexonaLoaded = true; };
+const niveaImg = new Image();
+niveaImg.src = 'assets/nivea.png';
+let isNiveaLoaded = false;
+niveaImg.onload = () => { isNiveaLoaded = true; };
 
-// Audio Manager (Supports Custom MP3 + Web Audio Synth Fallback)
+// Audio Manager (Plays the user's custom audio continuously)
 class AudioManager {
   constructor() {
     this.ctx = null;
     this.isMuted = false;
     this.isPlayingMusic = false;
-    this.customBgmLoaded = false;
-    this.customGameOverLoaded = false;
-    this.bgmTimer = null;
-    this.noteStep = 0;
 
-    // Check if custom MP3 audio files are available
     if (bgmAudio) {
-      bgmAudio.addEventListener('canplaythrough', () => {
-        this.customBgmLoaded = true;
-      });
-      bgmAudio.addEventListener('error', () => {
-        this.customBgmLoaded = false;
-      });
-    }
-
-    if (gameoverAudio) {
-      gameoverAudio.addEventListener('canplaythrough', () => {
-        this.customGameOverLoaded = true;
-      });
-      gameoverAudio.addEventListener('error', () => {
-        this.customGameOverLoaded = false;
-      });
+      bgmAudio.volume = 0.85;
+      bgmAudio.loop = true;
     }
   }
 
   init() {
     if (!this.ctx) {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (AudioCtx) {
-        this.ctx = new AudioCtx();
-      }
+      if (AudioCtx) this.ctx = new AudioCtx();
     }
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume();
@@ -95,120 +75,55 @@ class AudioManager {
   }
 
   startBGM() {
-    if (this.isMuted || this.isPlayingMusic) return;
+    if (this.isMuted) return;
     this.init();
-    this.isPlayingMusic = true;
 
-    // Try custom audio element first
-    if (this.customBgmLoaded && bgmAudio) {
-      bgmAudio.currentTime = 0;
-      bgmAudio.volume = 0.65;
-      bgmAudio.play().catch(() => {
-        this.startSynthBGM();
+    if (bgmAudio) {
+      bgmAudio.play().then(() => {
+        this.isPlayingMusic = true;
+      }).catch((err) => {
+        console.log('Audio autoplay blocked until direct interaction:', err);
       });
-    } else {
-      this.startSynthBGM();
     }
   }
 
   stopBGM() {
-    this.isPlayingMusic = false;
     if (bgmAudio) {
       bgmAudio.pause();
     }
-    if (this.bgmTimer) {
-      clearInterval(this.bgmTimer);
-      this.bgmTimer = null;
-    }
-  }
-
-  // Built-in catchy arcade background song synthesizer
-  startSynthBGM() {
-    if (!this.ctx || this.bgmTimer) return;
-    
-    // Catchy upbeat melody notes (frequencies in Hz)
-    const melody = [
-      261.63, 0, 293.66, 329.63, 0, 392.00, 329.63, 0,
-      349.23, 0, 329.63, 293.66, 0, 261.63, 196.00, 0,
-      261.63, 329.63, 392.00, 523.25, 0, 392.00, 329.63, 0,
-      293.66, 0, 349.23, 392.00, 0, 293.66, 261.63, 0
-    ];
-
-    const bass = [
-      130.81, 130.81, 164.81, 164.81, 174.61, 174.61, 196.00, 196.00,
-      130.81, 130.81, 164.81, 164.81, 146.83, 146.83, 130.81, 130.81
-    ];
-
-    this.noteStep = 0;
-    this.bgmTimer = setInterval(() => {
-      if (!this.isPlayingMusic || this.isMuted || !this.ctx) return;
-      const now = this.ctx.currentTime;
-      const note = melody[this.noteStep % melody.length];
-
-      if (note > 0) {
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(note, now);
-
-        gain.gain.setValueAtTime(0.08, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
-
-        osc.connect(gain);
-        gain.connect(this.ctx.destination);
-        osc.start(now);
-        osc.stop(now + 0.16);
-      }
-
-      // Bass note every 2 steps
-      if (this.noteStep % 2 === 0) {
-        const bNote = bass[(Math.floor(this.noteStep / 2)) % bass.length];
-        const bOsc = this.ctx.createOscillator();
-        const bGain = this.ctx.createGain();
-        bOsc.type = 'sine';
-        bOsc.frequency.setValueAtTime(bNote, now);
-
-        bGain.gain.setValueAtTime(0.12, now);
-        bGain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
-
-        bOsc.connect(bGain);
-        bGain.connect(this.ctx.destination);
-        bOsc.start(now);
-        bOsc.stop(now + 0.22);
-      }
-
-      this.noteStep++;
-    }, 175);
+    this.isPlayingMusic = false;
   }
 
   playScore() {
-    if (this.isMuted || !this.ctx) return;
+    if (this.isMuted) return;
+    this.init();
+    if (!this.ctx) return;
     const now = this.ctx.currentTime;
-    [523.25, 783.99].forEach((freq, i) => {
+    [659.25, 880].forEach((freq, i) => {
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
-      const st = now + (i * 0.07);
+      const st = now + (i * 0.08);
 
       osc.type = 'sine';
       osc.frequency.setValueAtTime(freq, st);
-      gain.gain.setValueAtTime(0.2, st);
-      gain.gain.exponentialRampToValueAtTime(0.001, st + 0.15);
+      gain.gain.setValueAtTime(0.22, st);
+      gain.gain.exponentialRampToValueAtTime(0.001, st + 0.16);
 
       osc.connect(gain);
       gain.connect(this.ctx.destination);
       osc.start(st);
-      osc.stop(st + 0.15);
+      osc.stop(st + 0.16);
     });
   }
 
-  // Game over sound (different sound, distinct defeat jingle)
   playGameOver() {
     this.stopBGM();
     if (this.isMuted) return;
 
-    if (this.customGameOverLoaded && gameoverAudio) {
+    // Check if custom game over audio exists, otherwise play synthesizer fail jingle
+    if (gameoverAudio && gameoverAudio.src && !gameoverAudio.error) {
       gameoverAudio.currentTime = 0;
-      gameoverAudio.volume = 0.8;
+      gameoverAudio.volume = 0.85;
       gameoverAudio.play().catch(() => this.playSynthGameOver());
     } else {
       this.playSynthGameOver();
@@ -216,15 +131,14 @@ class AudioManager {
   }
 
   playSynthGameOver() {
+    this.init();
     if (!this.ctx) return;
     const now = this.ctx.currentTime;
-    
-    // Funny descending arcade defeat sequence
     const notes = [
       { f: 392.00, t: 0.00, d: 0.22 }, // G4
       { f: 369.99, t: 0.22, d: 0.22 }, // F#4
       { f: 349.23, t: 0.44, d: 0.22 }, // F4
-      { f: 293.66, t: 0.66, d: 0.60 }  // D4 slide down
+      { f: 293.66, t: 0.66, d: 0.65 }  // D4 pitch drop
     ];
 
     notes.forEach(n => {
@@ -235,10 +149,10 @@ class AudioManager {
       osc.type = 'sawtooth';
       osc.frequency.setValueAtTime(n.f, st);
       if (n.f === 293.66) {
-        osc.frequency.exponentialRampToValueAtTime(140, st + n.d);
+        osc.frequency.exponentialRampToValueAtTime(130, st + n.d);
       }
 
-      gain.gain.setValueAtTime(0.22, st);
+      gain.gain.setValueAtTime(0.24, st);
       gain.gain.exponentialRampToValueAtTime(0.001, st + n.d);
 
       osc.connect(gain);
@@ -292,9 +206,9 @@ function addParticles(x, y, count, color) {
       y,
       vx: (Math.random() - 0.5) * 6,
       vy: (Math.random() - 0.5) * 6,
-      radius: Math.random() * 4 + 2,
+      radius: Math.random() * 3.5 + 1.5,
       alpha: 1,
-      color: color || '#facc15'
+      color: color || '#38bdf8'
     });
   }
 }
@@ -321,21 +235,27 @@ function drawParticles() {
   });
 }
 
-// Background
-class Background {
+// Dark Night Background with Twinkling Stars
+class DarkBackground {
   constructor() {
-    this.clouds = [
-      { x: 30, y: 70, s: 0.35, r: 35 },
-      { x: 210, y: 120, s: 0.25, r: 26 },
-      { x: 330, y: 50, s: 0.4, r: 42 }
-    ];
     this.groundX = 0;
+    // Generate twinkling night stars
+    this.stars = [];
+    for (let i = 0; i < 45; i++) {
+      this.stars.push({
+        x: Math.random() * 360,
+        y: Math.random() * 450,
+        size: Math.random() * 1.8 + 0.6,
+        alpha: Math.random() * 0.7 + 0.3,
+        blinkSpeed: Math.random() * 0.04 + 0.01
+      });
+    }
   }
 
   update() {
-    this.clouds.forEach(c => {
-      c.x -= c.s;
-      if (c.x + c.r * 2 < 0) c.x = CANVAS_WIDTH + 50;
+    this.stars.forEach(s => {
+      s.alpha += Math.sin(frames * s.blinkSpeed) * 0.02;
+      s.alpha = Math.max(0.2, Math.min(1, s.alpha));
     });
 
     if (currentState !== STATE.GAMEOVER) {
@@ -344,52 +264,64 @@ class Background {
   }
 
   draw() {
-    // Sky gradient
+    // Deep Midnight Gradient Sky
     const sky = ctx.createLinearGradient(0, 0, 0, GROUND_Y);
-    sky.addColorStop(0, '#38bdf8');
-    sky.addColorStop(0.7, '#bae6fd');
-    sky.addColorStop(1, '#e0f2fe');
+    sky.addColorStop(0, '#030712'); // obsidian black
+    sky.addColorStop(0.4, '#090d16'); // deep midnight
+    sky.addColorStop(0.75, '#0f172a'); // navy slate
+    sky.addColorStop(1, '#1e1b4b'); // deep indigo glow near horizon
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, CANVAS_WIDTH, GROUND_Y);
 
-    // Clouds
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-    this.clouds.forEach(c => {
+    // Render Stars
+    this.stars.forEach(s => {
+      ctx.save();
+      ctx.globalAlpha = s.alpha;
+      ctx.fillStyle = '#ffffff';
       ctx.beginPath();
-      ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2);
-      ctx.arc(c.x + c.r * 0.7, c.y - c.r * 0.3, c.r * 0.75, 0, Math.PI * 2);
-      ctx.arc(c.x + c.r * 1.3, c.y, c.r * 0.8, 0, Math.PI * 2);
+      ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
       ctx.fill();
+      ctx.restore();
     });
 
-    // Ground Base
-    ctx.fillStyle = '#ded895';
+    // Distant City Skyline Silhouettes
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.7)';
+    const skyline = [
+      [15, 60, 35], [55, 95, 45], [110, 75, 40],
+      [160, 110, 50], [220, 85, 40], [270, 120, 55], [335, 70, 35]
+    ];
+    skyline.forEach(([x, h, w]) => {
+      ctx.fillRect(x, GROUND_Y - h, w, h);
+    });
+
+    // Dark Ground Base
+    ctx.fillStyle = '#0f172a';
     ctx.fillRect(0, GROUND_Y, CANVAS_WIDTH, CANVAS_HEIGHT - GROUND_Y);
 
-    // Grass Top Border
-    ctx.fillStyle = '#22c55e';
-    ctx.fillRect(0, GROUND_Y, CANVAS_WIDTH, 14);
+    // Neon Cyan / Indigo Accent Trim
+    ctx.fillStyle = '#38bdf8';
+    ctx.fillRect(0, GROUND_Y, CANVAS_WIDTH, 4);
 
-    ctx.fillStyle = '#15803d';
-    ctx.fillRect(0, GROUND_Y + 14, CANVAS_WIDTH, 4);
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(0, GROUND_Y + 4, CANVAS_WIDTH, 12);
 
-    // Diagonal grass/dirt stripes
-    ctx.strokeStyle = '#c5bc73';
+    // Diagonal Ground Stripes
+    ctx.strokeStyle = '#1e293b';
     ctx.lineWidth = 3;
     for (let x = this.groundX - 30; x < CANVAS_WIDTH + 30; x += 20) {
       ctx.beginPath();
-      ctx.moveTo(x, GROUND_Y + 18);
+      ctx.moveTo(x, GROUND_Y + 16);
       ctx.lineTo(x - 12, CANVAS_HEIGHT);
       ctx.stroke();
     }
   }
 }
 
-// Rexona Obstacles Manager
-class RexonaObstacles {
+// Nivea Roll-On Obstacles (Without Cap - Roller Ball Exposed)
+class NiveaObstacles {
   constructor() {
     this.items = [];
-    this.bottleWidth = 64; // width of Rexona bottle
+    this.bottleWidth = 62;
     this.gap = 145; // comfortable gap for mobile
     this.spawnRate = 110;
   }
@@ -430,12 +362,12 @@ class RexonaObstacles {
         }
       }
 
-      // Hitbox Collision Detection (Forgiving for fun gameplay)
+      // Hitbox Collision Detection (Fair collision bounds)
       const pBox = {
-        left: player.x - player.radius + 5,
-        right: player.x + player.radius - 5,
-        top: player.y - player.radius + 5,
-        bottom: player.y + player.radius - 5
+        left: player.x - player.radius + 4,
+        right: player.x + player.radius - 4,
+        top: player.y - player.radius + 4,
+        bottom: player.y + player.radius - 4
       };
 
       const hitTop = pBox.right > p.x && pBox.left < p.x + this.bottleWidth && pBox.top < p.top;
@@ -457,35 +389,35 @@ class RexonaObstacles {
       const bottomY = p.top + this.gap;
       const bottomHeight = GROUND_Y - bottomY;
 
-      // Top Rexona (Hanging upside down, roller ball cap faces down)
-      this.drawRexonaBottle(p.x, 0, this.bottleWidth, p.top, true);
+      // Top Nivea bottle: Inverted so exposed roller ball faces downwards into the gap
+      this.drawNiveaBottle(p.x, 0, this.bottleWidth, p.top, true);
 
-      // Bottom Rexona (Standing upright, roller ball cap faces up)
-      this.drawRexonaBottle(p.x, bottomY, this.bottleWidth, bottomHeight, false);
+      // Bottom Nivea bottle: Upright so exposed roller ball faces upwards into the gap
+      this.drawNiveaBottle(p.x, bottomY, this.bottleWidth, bottomHeight, false);
     });
   }
 
-  drawRexonaBottle(x, y, w, h, isTop) {
+  drawNiveaBottle(x, y, w, h, isTop) {
     ctx.save();
-    if (isRexonaLoaded) {
+    if (isNiveaLoaded) {
       if (isTop) {
-        // Invert top bottle vertically
+        // Invert vertically so roller ball points down towards the gap
         ctx.translate(x + w, y + h);
         ctx.scale(-1, -1);
-        ctx.drawImage(rexonaImg, 0, 0, w, h);
+        ctx.drawImage(niveaImg, 0, 0, w, h);
       } else {
-        ctx.drawImage(rexonaImg, x, y, w, h);
+        // Upright so roller ball points up towards the gap
+        ctx.drawImage(niveaImg, x, y, w, h);
       }
     } else {
-      // Fallback styling if image still downloading
-      ctx.fillStyle = '#0284c7';
+      ctx.fillStyle = '#1e3a8a';
       ctx.fillRect(x, y, w, h);
     }
     ctx.restore();
   }
 }
 
-// Player (Custom Avatar Face)
+// Player (Natural Face Avatar - NOT Compressed into Circle, NO Outline)
 class Player {
   constructor() {
     this.x = 90;
@@ -493,8 +425,11 @@ class Player {
     this.velocity = 0;
     this.gravity = 0.28;
     this.jump = -5.5;
-    this.radius = 22; // collision radius
-    this.drawSize = 52; // rendered face avatar size
+    this.radius = 20; // collision radius
+    
+    // Natural aspect ratio (image is 694x1013 ~ 0.685)
+    this.displayHeight = 58;
+    this.displayWidth = 40;
     this.rotation = 0;
   }
 
@@ -507,14 +442,14 @@ class Player {
 
   flap() {
     this.velocity = this.jump;
-    // Jump sound REMOVED as requested!
-    addParticles(this.x - 12, this.y + 10, 3, '#ffffff');
+    // Flap sound remains removed!
+    addParticles(this.x - 10, this.y + 12, 3, '#94a3b8');
   }
 
   update() {
     if (currentState === STATE.READY) {
-      // Idle bobbing
-      this.y = 270 + Math.sin(frames * 0.08) * 9;
+      // Gentle idle floating
+      this.y = 270 + Math.sin(frames * 0.08) * 8;
       this.rotation = 0;
       return;
     }
@@ -522,14 +457,14 @@ class Player {
     this.velocity += this.gravity;
     this.y += this.velocity;
 
-    // Tilt rotation based on vertical speed
+    // Natural tilt physics
     if (this.velocity < 0) {
-      this.rotation = Math.max(-0.4, this.velocity * 0.07);
+      this.rotation = Math.max(-0.35, this.velocity * 0.06);
     } else {
-      this.rotation = Math.min(Math.PI / 2.5, (this.velocity - 2) * 0.09);
+      this.rotation = Math.min(Math.PI / 2.6, (this.velocity - 2) * 0.09);
     }
 
-    // Ground check
+    // Ground collision
     if (this.y + this.radius >= GROUND_Y) {
       this.y = GROUND_Y - this.radius;
       if (currentState === STATE.PLAYING) {
@@ -550,34 +485,14 @@ class Player {
     ctx.rotate(this.rotation);
 
     if (isPlayerLoaded) {
-      // Draw Avatar image with cute rounded border shadow
-      ctx.save();
-      ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
-      ctx.shadowBlur = 8;
-      ctx.shadowOffsetY = 3;
-
-      // Circular clip mask for polished avatar look
-      ctx.beginPath();
-      ctx.arc(0, 0, this.drawSize / 2, 0, Math.PI * 2);
-      ctx.closePath();
-      ctx.clip();
-
+      // Render face in its original uncompressed form without circular crop and without outline
       ctx.drawImage(
         playerImg,
-        -this.drawSize / 2,
-        -this.drawSize / 2,
-        this.drawSize,
-        this.drawSize
+        -this.displayWidth / 2,
+        -this.displayHeight / 2,
+        this.displayWidth,
+        this.displayHeight
       );
-      ctx.restore();
-
-      // Golden ring highlight around head
-      ctx.strokeStyle = '#facc15';
-      ctx.lineWidth = 2.5;
-      ctx.beginPath();
-      ctx.arc(0, 0, this.drawSize / 2, 0, Math.PI * 2);
-      ctx.stroke();
-
     } else {
       // Fallback
       ctx.fillStyle = '#f97316';
@@ -591,8 +506,8 @@ class Player {
 }
 
 // Instances
-const bg = new Background();
-const obstacles = new RexonaObstacles();
+const bg = new DarkBackground();
+const obstacles = new NiveaObstacles();
 const player = new Player();
 
 function triggerGameOver() {
@@ -602,7 +517,7 @@ function triggerGameOver() {
   audio.playGameOver();
   addParticles(player.x, player.y, 25, '#ef4444');
 
-  // Populate Scorecard Modal
+  // Update Scorecard Modal
   finalScoreEl.textContent = score;
   finalHighscoreEl.textContent = highScore;
 
@@ -612,7 +527,7 @@ function triggerGameOver() {
     newRecordTag.classList.add('hidden');
   }
 
-  // Medals calculation
+  // Medals
   if (score >= 30) {
     medalEmoji.textContent = '💎';
     medalText.textContent = 'Diamond Legend!';
@@ -630,10 +545,10 @@ function triggerGameOver() {
     medalText.textContent = 'Keep Trying!';
   }
 
-  // Show Modal after short dramatic pause
+  // Show Modal after brief impact delay
   setTimeout(() => {
     gameoverModal.classList.remove('hidden');
-  }, 350);
+  }, 300);
 }
 
 function resetGame() {
@@ -648,14 +563,14 @@ function resetGame() {
   currentState = STATE.READY;
 }
 
-// Touch / Tap / Key Action
+// Action Trigger (Touch / Space / Click)
 function handleAction() {
   audio.init();
 
   if (currentState === STATE.READY) {
     currentState = STATE.PLAYING;
     readyPrompt.classList.add('hidden');
-    audio.startBGM(); // Start continuous song in background!
+    audio.startBGM(); // Starts continuous background music!
     player.flap();
   } else if (currentState === STATE.PLAYING) {
     player.flap();
