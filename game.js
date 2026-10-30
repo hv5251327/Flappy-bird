@@ -84,23 +84,26 @@ class AudioManager {
     this.init();
 
     if (bgmAudio) {
-      const tryPlay = () => {
-        bgmAudio.play().then(() => {
+      const playPromise = bgmAudio.play();
+      if (playPromise !== undefined) {
+        playPromise.then(() => {
           this.isPlayingMusic = true;
         }).catch((err) => {
-          console.log('BGM play waiting for user gesture:', err);
+          // If blocked by browser autoplay policy on page load, play on the very first touch/gesture!
+          const playOnFirstInteraction = () => {
+            if (!this.isMuted) {
+              bgmAudio.play().then(() => { this.isPlayingMusic = true; });
+            }
+            window.removeEventListener('pointerdown', playOnFirstInteraction);
+            window.removeEventListener('touchstart', playOnFirstInteraction);
+            window.removeEventListener('click', playOnFirstInteraction);
+            window.removeEventListener('keydown', playOnFirstInteraction);
+          };
+          window.addEventListener('pointerdown', playOnFirstInteraction, { once: true });
+          window.addEventListener('touchstart', playOnFirstInteraction, { once: true, passive: true });
+          window.addEventListener('click', playOnFirstInteraction, { once: true });
+          window.addEventListener('keydown', playOnFirstInteraction, { once: true });
         });
-      };
-
-      if (bgmAudio.readyState >= 2) {
-        tryPlay();
-      } else {
-        bgmAudio.addEventListener('canplay', () => {
-          if (!this.isMuted && currentState === STATE.PLAYING && bgmAudio.paused) {
-            tryPlay();
-          }
-        }, { once: true });
-        tryPlay();
       }
     }
   }
@@ -657,11 +660,19 @@ const onPointerAction = (e) => {
 };
 
 canvas.addEventListener('pointerdown', onPointerAction);
-canvas.addEventListener('touchstart', (e) => {
-  // Prevent double trigger if pointerdown already fired
-  if (e.cancelable) e.preventDefault();
-  onPointerAction(e);
-}, { passive: false });
+window.addEventListener('touchstart', (e) => {
+  // If tapped inside game wrapper and not on interactive buttons
+  if (e.target && !e.target.closest('#music-btn') && !e.target.closest('#restart-button')) {
+    if (currentState !== STATE.GAMEOVER) {
+      handleAction();
+    }
+  }
+}, { passive: true });
+
+// Immediately attempt to play background audio upon website opening
+audio.startBGM();
+document.addEventListener('DOMContentLoaded', () => audio.startBGM());
+window.addEventListener('load', () => audio.startBGM());
 
 restartBtn.addEventListener('click', (e) => {
   e.stopPropagation();
