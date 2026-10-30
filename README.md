@@ -1,5 +1,7 @@
 # 🐦 Flappy Bird Web Game
 
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/hv5251327/Flappy-bird)
+
 A modern, responsive Flappy Bird web game built with pure HTML5 Canvas and Web Audio API synthesized sound effects.
 
 ## 🚀 Features
