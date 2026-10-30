@@ -1,22 +1,92 @@
-// Flappy Bird Game Engine
+// Flappy Face vs Rexona - Mobile Fullscreen Engine
 const canvas = document.getElementById('game-canvas');
 const ctx = canvas.getContext('2d');
 
-const CANVAS_WIDTH = 360;
-const CANVAS_HEIGHT = 600;
-const GROUND_Y = 510;
+// DOM Elements
+const scoreCounter = document.getElementById('score-counter');
+const readyPrompt = document.getElementById('ready-prompt');
+const gameoverModal = document.getElementById('gameover-modal');
+const finalScoreEl = document.getElementById('card-score');
+const finalHighscoreEl = document.getElementById('card-highscore');
+const newRecordTag = document.getElementById('new-record-tag');
+const medalSlot = document.getElementById('medal-slot');
+const medalEmoji = document.getElementById('medal-emoji');
+const medalText = document.getElementById('medal-text');
+const restartBtn = document.getElementById('restart-button');
+const musicBtn = document.getElementById('music-btn');
 
-// Web Audio API Synthesizer (No external assets required!)
-class SoundFX {
+const bgmAudio = document.getElementById('audio-bgm');
+const gameoverAudio = document.getElementById('audio-gameover');
+
+// Responsive Dynamic Dimensions
+let CANVAS_WIDTH = 360;
+let CANVAS_HEIGHT = 640;
+let GROUND_Y = 550;
+
+function resizeCanvas() {
+  const container = canvas.parentElement;
+  const w = container.clientWidth || window.innerWidth;
+  const h = container.clientHeight || window.innerHeight;
+  
+  CANVAS_WIDTH = 360;
+  // Calculate vertical height to match mobile aspect ratio
+  CANVAS_HEIGHT = Math.max(580, Math.min(800, Math.round(CANVAS_WIDTH * (h / w))));
+  GROUND_Y = CANVAS_HEIGHT - 90;
+
+  canvas.width = CANVAS_WIDTH;
+  canvas.height = CANVAS_HEIGHT;
+}
+
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+// Load Assets
+const playerImg = new Image();
+playerImg.src = 'assets/player.png';
+let isPlayerLoaded = false;
+playerImg.onload = () => { isPlayerLoaded = true; };
+
+const rexonaImg = new Image();
+rexonaImg.src = 'assets/rexona.png';
+let isRexonaLoaded = false;
+rexonaImg.onload = () => { isRexonaLoaded = true; };
+
+// Audio Manager (Supports Custom MP3 + Web Audio Synth Fallback)
+class AudioManager {
   constructor() {
     this.ctx = null;
+    this.isMuted = false;
+    this.isPlayingMusic = false;
+    this.customBgmLoaded = false;
+    this.customGameOverLoaded = false;
+    this.bgmTimer = null;
+    this.noteStep = 0;
+
+    // Check if custom MP3 audio files are available
+    if (bgmAudio) {
+      bgmAudio.addEventListener('canplaythrough', () => {
+        this.customBgmLoaded = true;
+      });
+      bgmAudio.addEventListener('error', () => {
+        this.customBgmLoaded = false;
+      });
+    }
+
+    if (gameoverAudio) {
+      gameoverAudio.addEventListener('canplaythrough', () => {
+        this.customGameOverLoaded = true;
+      });
+      gameoverAudio.addEventListener('error', () => {
+        this.customGameOverLoaded = false;
+      });
+    }
   }
 
   init() {
     if (!this.ctx) {
-      const AudioContext = window.AudioContext || window.webkitAudioContext;
-      if (AudioContext) {
-        this.ctx = new AudioContext();
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) {
+        this.ctx = new AudioCtx();
       }
     }
     if (this.ctx && this.ctx.state === 'suspended') {
@@ -24,74 +94,183 @@ class SoundFX {
     }
   }
 
-  playFlap() {
-    if (!this.ctx) return;
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-    const now = this.ctx.currentTime;
+  startBGM() {
+    if (this.isMuted || this.isPlayingMusic) return;
+    this.init();
+    this.isPlayingMusic = true;
 
-    osc.type = 'triangle';
-    osc.frequency.setValueAtTime(320, now);
-    osc.frequency.exponentialRampToValueAtTime(560, now + 0.12);
+    // Try custom audio element first
+    if (this.customBgmLoaded && bgmAudio) {
+      bgmAudio.currentTime = 0;
+      bgmAudio.volume = 0.65;
+      bgmAudio.play().catch(() => {
+        this.startSynthBGM();
+      });
+    } else {
+      this.startSynthBGM();
+    }
+  }
 
-    gain.gain.setValueAtTime(0.3, now);
-    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
+  stopBGM() {
+    this.isPlayingMusic = false;
+    if (bgmAudio) {
+      bgmAudio.pause();
+    }
+    if (this.bgmTimer) {
+      clearInterval(this.bgmTimer);
+      this.bgmTimer = null;
+    }
+  }
 
-    osc.connect(gain);
-    gain.connect(this.ctx.destination);
+  // Built-in catchy arcade background song synthesizer
+  startSynthBGM() {
+    if (!this.ctx || this.bgmTimer) return;
+    
+    // Catchy upbeat melody notes (frequencies in Hz)
+    const melody = [
+      261.63, 0, 293.66, 329.63, 0, 392.00, 329.63, 0,
+      349.23, 0, 329.63, 293.66, 0, 261.63, 196.00, 0,
+      261.63, 329.63, 392.00, 523.25, 0, 392.00, 329.63, 0,
+      293.66, 0, 349.23, 392.00, 0, 293.66, 261.63, 0
+    ];
 
-    osc.start(now);
-    osc.stop(now + 0.12);
+    const bass = [
+      130.81, 130.81, 164.81, 164.81, 174.61, 174.61, 196.00, 196.00,
+      130.81, 130.81, 164.81, 164.81, 146.83, 146.83, 130.81, 130.81
+    ];
+
+    this.noteStep = 0;
+    this.bgmTimer = setInterval(() => {
+      if (!this.isPlayingMusic || this.isMuted || !this.ctx) return;
+      const now = this.ctx.currentTime;
+      const note = melody[this.noteStep % melody.length];
+
+      if (note > 0) {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(note, now);
+
+        gain.gain.setValueAtTime(0.08, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.16);
+      }
+
+      // Bass note every 2 steps
+      if (this.noteStep % 2 === 0) {
+        const bNote = bass[(Math.floor(this.noteStep / 2)) % bass.length];
+        const bOsc = this.ctx.createOscillator();
+        const bGain = this.ctx.createGain();
+        bOsc.type = 'sine';
+        bOsc.frequency.setValueAtTime(bNote, now);
+
+        bGain.gain.setValueAtTime(0.12, now);
+        bGain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+
+        bOsc.connect(bGain);
+        bGain.connect(this.ctx.destination);
+        bOsc.start(now);
+        bOsc.stop(now + 0.22);
+      }
+
+      this.noteStep++;
+    }, 175);
   }
 
   playScore() {
-    if (!this.ctx) return;
+    if (this.isMuted || !this.ctx) return;
     const now = this.ctx.currentTime;
-    
-    // Two-tone cheerful chime
-    [659.25, 880].forEach((freq, i) => {
+    [523.25, 783.99].forEach((freq, i) => {
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
-      const startTime = now + (i * 0.08);
+      const st = now + (i * 0.07);
 
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(freq, startTime);
-
-      gain.gain.setValueAtTime(0.25, startTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.18);
+      osc.frequency.setValueAtTime(freq, st);
+      gain.gain.setValueAtTime(0.2, st);
+      gain.gain.exponentialRampToValueAtTime(0.001, st + 0.15);
 
       osc.connect(gain);
       gain.connect(this.ctx.destination);
-
-      osc.start(startTime);
-      osc.stop(startTime + 0.18);
+      osc.start(st);
+      osc.stop(st + 0.15);
     });
   }
 
-  playHit() {
+  // Game over sound (different sound, distinct defeat jingle)
+  playGameOver() {
+    this.stopBGM();
+    if (this.isMuted) return;
+
+    if (this.customGameOverLoaded && gameoverAudio) {
+      gameoverAudio.currentTime = 0;
+      gameoverAudio.volume = 0.8;
+      gameoverAudio.play().catch(() => this.playSynthGameOver());
+    } else {
+      this.playSynthGameOver();
+    }
+  }
+
+  playSynthGameOver() {
     if (!this.ctx) return;
     const now = this.ctx.currentTime;
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
+    
+    // Funny descending arcade defeat sequence
+    const notes = [
+      { f: 392.00, t: 0.00, d: 0.22 }, // G4
+      { f: 369.99, t: 0.22, d: 0.22 }, // F#4
+      { f: 349.23, t: 0.44, d: 0.22 }, // F4
+      { f: 293.66, t: 0.66, d: 0.60 }  // D4 slide down
+    ];
 
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(160, now);
-    osc.frequency.exponentialRampToValueAtTime(40, now + 0.18);
+    notes.forEach(n => {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      const st = now + n.t;
 
-    gain.gain.setValueAtTime(0.4, now);
-    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.18);
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(n.f, st);
+      if (n.f === 293.66) {
+        osc.frequency.exponentialRampToValueAtTime(140, st + n.d);
+      }
 
-    osc.connect(gain);
-    gain.connect(this.ctx.destination);
+      gain.gain.setValueAtTime(0.22, st);
+      gain.gain.exponentialRampToValueAtTime(0.001, st + n.d);
 
-    osc.start(now);
-    osc.stop(now + 0.18);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(st);
+      osc.stop(st + n.d);
+    });
+  }
+
+  toggleMute() {
+    this.isMuted = !this.isMuted;
+    if (this.isMuted) {
+      this.stopBGM();
+      musicBtn.classList.add('muted');
+      musicBtn.textContent = '🔇';
+    } else {
+      musicBtn.classList.remove('muted');
+      musicBtn.textContent = '🎵';
+      if (currentState === STATE.PLAYING) {
+        this.startBGM();
+      }
+    }
   }
 }
 
-const sound = new SoundFX();
+const audio = new AudioManager();
+musicBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  audio.toggleMute();
+});
 
-// Game State Management
+// Game States
 const STATE = {
   READY: 0,
   PLAYING: 1,
@@ -101,20 +280,19 @@ const STATE = {
 let currentState = STATE.READY;
 let frames = 0;
 let score = 0;
-let highScore = parseInt(localStorage.getItem('flappy_high_score') || '0', 10);
+let highScore = parseInt(localStorage.getItem('flappy_face_best') || '0', 10);
 let screenShake = 0;
-let isNewHighScore = false;
-
-// Particles
+let isNewRecord = false;
 let particles = [];
+
 function addParticles(x, y, count, color) {
   for (let i = 0; i < count; i++) {
     particles.push({
       x,
       y,
-      vx: (Math.random() - 0.5) * 5,
-      vy: (Math.random() - 0.5) * 5,
-      radius: Math.random() * 3.5 + 1.5,
+      vx: (Math.random() - 0.5) * 6,
+      vy: (Math.random() - 0.5) * 6,
+      radius: Math.random() * 4 + 2,
       alpha: 1,
       color: color || '#facc15'
     });
@@ -126,10 +304,8 @@ function updateParticles() {
     const p = particles[i];
     p.x += p.vx;
     p.y += p.vy;
-    p.alpha -= 0.025;
-    if (p.alpha <= 0) {
-      particles.splice(i, 1);
-    }
+    p.alpha -= 0.03;
+    if (p.alpha <= 0) particles.splice(i, 1);
   }
 }
 
@@ -145,87 +321,77 @@ function drawParticles() {
   });
 }
 
-// Background & Clouds
+// Background
 class Background {
   constructor() {
     this.clouds = [
-      { x: 40, y: 80, speed: 0.3, size: 38 },
-      { x: 190, y: 130, speed: 0.2, size: 28 },
-      { x: 310, y: 60, speed: 0.35, size: 45 }
+      { x: 30, y: 70, s: 0.35, r: 35 },
+      { x: 210, y: 120, s: 0.25, r: 26 },
+      { x: 330, y: 50, s: 0.4, r: 42 }
     ];
     this.groundX = 0;
   }
 
   update() {
     this.clouds.forEach(c => {
-      c.x -= c.speed;
-      if (c.x + c.size * 2 < 0) c.x = CANVAS_WIDTH + 40;
+      c.x -= c.s;
+      if (c.x + c.r * 2 < 0) c.x = CANVAS_WIDTH + 50;
     });
 
     if (currentState !== STATE.GAMEOVER) {
-      this.groundX = (this.groundX - 2) % 24;
+      this.groundX = (this.groundX - 2.5) % 24;
     }
   }
 
   draw() {
     // Sky gradient
     const sky = ctx.createLinearGradient(0, 0, 0, GROUND_Y);
-    sky.addColorStop(0, '#4fc3f7');
-    sky.addColorStop(0.7, '#b3e5fc');
-    sky.addColorStop(1, '#e1f5fe');
+    sky.addColorStop(0, '#38bdf8');
+    sky.addColorStop(0.7, '#bae6fd');
+    sky.addColorStop(1, '#e0f2fe');
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, CANVAS_WIDTH, GROUND_Y);
-
-    // City Silhouettes
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-    const buildings = [
-      [20, 70, 40], [70, 110, 50], [130, 85, 35],
-      [175, 120, 60], [245, 95, 45], [300, 130, 50]
-    ];
-    buildings.forEach(([x, h, w]) => {
-      ctx.fillRect(x, GROUND_Y - h, w, h);
-    });
 
     // Clouds
     ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
     this.clouds.forEach(c => {
       ctx.beginPath();
-      ctx.arc(c.x, c.y, c.size, 0, Math.PI * 2);
-      ctx.arc(c.x + c.size * 0.6, c.y - c.size * 0.3, c.size * 0.7, 0, Math.PI * 2);
-      ctx.arc(c.x + c.size * 1.2, c.y, c.size * 0.8, 0, Math.PI * 2);
+      ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2);
+      ctx.arc(c.x + c.r * 0.7, c.y - c.r * 0.3, c.r * 0.75, 0, Math.PI * 2);
+      ctx.arc(c.x + c.r * 1.3, c.y, c.r * 0.8, 0, Math.PI * 2);
       ctx.fill();
     });
 
-    // Ground
+    // Ground Base
     ctx.fillStyle = '#ded895';
     ctx.fillRect(0, GROUND_Y, CANVAS_WIDTH, CANVAS_HEIGHT - GROUND_Y);
 
     // Grass Top Border
-    ctx.fillStyle = '#73bf2e';
+    ctx.fillStyle = '#22c55e';
     ctx.fillRect(0, GROUND_Y, CANVAS_WIDTH, 14);
 
-    ctx.fillStyle = '#558022';
-    ctx.fillRect(0, GROUND_Y + 14, CANVAS_WIDTH, 3);
+    ctx.fillStyle = '#15803d';
+    ctx.fillRect(0, GROUND_Y + 14, CANVAS_WIDTH, 4);
 
-    // Diagonal ground stripes
+    // Diagonal grass/dirt stripes
     ctx.strokeStyle = '#c5bc73';
     ctx.lineWidth = 3;
-    for (let x = this.groundX - 30; x < CANVAS_WIDTH + 30; x += 18) {
+    for (let x = this.groundX - 30; x < CANVAS_WIDTH + 30; x += 20) {
       ctx.beginPath();
-      ctx.moveTo(x, GROUND_Y + 17);
+      ctx.moveTo(x, GROUND_Y + 18);
       ctx.lineTo(x - 12, CANVAS_HEIGHT);
       ctx.stroke();
     }
   }
 }
 
-// Pipes
-class PipesManager {
+// Rexona Obstacles Manager
+class RexonaObstacles {
   constructor() {
     this.items = [];
-    this.pipeWidth = 56;
-    this.gap = 125;
-    this.spawnRate = 100;
+    this.bottleWidth = 64; // width of Rexona bottle
+    this.gap = 145; // comfortable gap for mobile
+    this.spawnRate = 110;
   }
 
   reset() {
@@ -248,38 +414,39 @@ class PipesManager {
 
     for (let i = this.items.length - 1; i >= 0; i--) {
       const p = this.items[i];
-      p.x -= 2.2;
+      p.x -= 2.4;
 
-      // Score counter
-      if (!p.passed && p.x + this.pipeWidth < bird.x) {
+      // Scoring
+      if (!p.passed && p.x + this.bottleWidth < player.x) {
         p.passed = true;
         score++;
-        sound.playScore();
-        addParticles(bird.x, bird.y, 10, '#38bdf8');
+        scoreCounter.textContent = score;
+        audio.playScore();
+        addParticles(player.x, player.y, 8, '#38bdf8');
         if (score > highScore) {
           highScore = score;
-          isNewHighScore = true;
-          localStorage.setItem('flappy_high_score', highScore);
+          isNewRecord = true;
+          localStorage.setItem('flappy_face_best', highScore);
         }
       }
 
-      // Bird collision
-      const birdBox = {
-        left: bird.x - bird.radius + 3,
-        right: bird.x + bird.radius - 3,
-        top: bird.y - bird.radius + 3,
-        bottom: bird.y + bird.radius - 3
+      // Hitbox Collision Detection (Forgiving for fun gameplay)
+      const pBox = {
+        left: player.x - player.radius + 5,
+        right: player.x + player.radius - 5,
+        top: player.y - player.radius + 5,
+        bottom: player.y + player.radius - 5
       };
 
-      const hitsTopPipe = birdBox.right > p.x && birdBox.left < p.x + this.pipeWidth && birdBox.top < p.top;
-      const hitsBottomPipe = birdBox.right > p.x && birdBox.left < p.x + this.pipeWidth && birdBox.bottom > p.top + this.gap;
+      const hitTop = pBox.right > p.x && pBox.left < p.x + this.bottleWidth && pBox.top < p.top;
+      const hitBottom = pBox.right > p.x && pBox.left < p.x + this.bottleWidth && pBox.bottom > p.top + this.gap;
 
-      if (hitsTopPipe || hitsBottomPipe) {
+      if (hitTop || hitBottom) {
         triggerGameOver();
       }
 
-      // Remove offscreen
-      if (p.x + this.pipeWidth < -10) {
+      // Remove off-screen
+      if (p.x + this.bottleWidth < -20) {
         this.items.splice(i, 1);
       }
     }
@@ -290,98 +457,79 @@ class PipesManager {
       const bottomY = p.top + this.gap;
       const bottomHeight = GROUND_Y - bottomY;
 
-      // Draw Top Pipe Body
-      this.renderPipe(p.x, 0, this.pipeWidth, p.top, true);
+      // Top Rexona (Hanging upside down, roller ball cap faces down)
+      this.drawRexonaBottle(p.x, 0, this.bottleWidth, p.top, true);
 
-      // Draw Bottom Pipe Body
-      this.renderPipe(p.x, bottomY, this.pipeWidth, bottomHeight, false);
+      // Bottom Rexona (Standing upright, roller ball cap faces up)
+      this.drawRexonaBottle(p.x, bottomY, this.bottleWidth, bottomHeight, false);
     });
   }
 
-  renderPipe(x, y, w, h, isTop) {
-    // Pipe gradient
-    const pipeGrad = ctx.createLinearGradient(x, 0, x + w, 0);
-    pipeGrad.addColorStop(0, '#538d22');
-    pipeGrad.addColorStop(0.2, '#73bf2e');
-    pipeGrad.addColorStop(0.6, '#a4e637');
-    pipeGrad.addColorStop(0.85, '#538d22');
-    pipeGrad.addColorStop(1, '#2c530e');
-
-    ctx.fillStyle = pipeGrad;
-    ctx.strokeStyle = '#223e0c';
-    ctx.lineWidth = 2.5;
-
-    ctx.fillRect(x, y, w, h);
-    ctx.strokeRect(x, y, w, h);
-
-    // Pipe Cap
-    const capHeight = 24;
-    const capExtra = 4;
-    const capX = x - capExtra;
-    const capW = w + (capExtra * 2);
-    const capY = isTop ? y + h - capHeight : y;
-
-    const capGrad = ctx.createLinearGradient(capX, 0, capX + capW, 0);
-    capGrad.addColorStop(0, '#538d22');
-    capGrad.addColorStop(0.25, '#73bf2e');
-    capGrad.addColorStop(0.65, '#a4e637');
-    capGrad.addColorStop(1, '#2c530e');
-
-    ctx.fillStyle = capGrad;
-    ctx.fillRect(capX, capY, capW, capHeight);
-    ctx.strokeRect(capX, capY, capW, capHeight);
+  drawRexonaBottle(x, y, w, h, isTop) {
+    ctx.save();
+    if (isRexonaLoaded) {
+      if (isTop) {
+        // Invert top bottle vertically
+        ctx.translate(x + w, y + h);
+        ctx.scale(-1, -1);
+        ctx.drawImage(rexonaImg, 0, 0, w, h);
+      } else {
+        ctx.drawImage(rexonaImg, x, y, w, h);
+      }
+    } else {
+      // Fallback styling if image still downloading
+      ctx.fillStyle = '#0284c7';
+      ctx.fillRect(x, y, w, h);
+    }
+    ctx.restore();
   }
 }
 
-// Bird Object
-class Bird {
+// Player (Custom Avatar Face)
+class Player {
   constructor() {
-    this.x = 85;
-    this.y = 260;
+    this.x = 90;
+    this.y = 280;
     this.velocity = 0;
     this.gravity = 0.28;
-    this.jump = -5.4;
-    this.radius = 14;
+    this.jump = -5.5;
+    this.radius = 22; // collision radius
+    this.drawSize = 52; // rendered face avatar size
     this.rotation = 0;
-    this.wingAngle = 0;
   }
 
   reset() {
-    this.x = 85;
-    this.y = 260;
+    this.x = 90;
+    this.y = 280;
     this.velocity = 0;
     this.rotation = 0;
   }
 
   flap() {
     this.velocity = this.jump;
-    sound.playFlap();
-    addParticles(this.x - 10, this.y + 6, 4, '#ffffff');
+    // Jump sound REMOVED as requested!
+    addParticles(this.x - 12, this.y + 10, 3, '#ffffff');
   }
 
   update() {
     if (currentState === STATE.READY) {
-      // Gentle floating animation
-      this.y = 250 + Math.sin(frames * 0.08) * 8;
+      // Idle bobbing
+      this.y = 270 + Math.sin(frames * 0.08) * 9;
       this.rotation = 0;
-      this.wingAngle = Math.sin(frames * 0.2) * 0.4;
       return;
     }
 
     this.velocity += this.gravity;
     this.y += this.velocity;
 
-    // Wing flapping speed tied to velocity
-    this.wingAngle = Math.sin(frames * 0.35) * 0.6;
-
-    // Rotation calculation
+    // Tilt rotation based on vertical speed
     if (this.velocity < 0) {
-      this.rotation = Math.max(-0.45, this.velocity * 0.08);
+      this.rotation = Math.max(-0.4, this.velocity * 0.07);
     } else {
-      this.rotation = Math.min(Math.PI / 2.2, (this.velocity - 2) * 0.1);
+      this.rotation = Math.min(Math.PI / 2.5, (this.velocity - 2) * 0.09);
     }
 
-    // Ground collision
+    // Ground check
     if (this.y + this.radius >= GROUND_Y) {
       this.y = GROUND_Y - this.radius;
       if (currentState === STATE.PLAYING) {
@@ -401,54 +549,42 @@ class Bird {
     ctx.translate(this.x, this.y);
     ctx.rotate(this.rotation);
 
-    // Bird Body (Golden Yellow Oval)
-    ctx.fillStyle = '#facc15';
-    ctx.strokeStyle = '#854d0e';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, 16, 13, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
+    if (isPlayerLoaded) {
+      // Draw Avatar image with cute rounded border shadow
+      ctx.save();
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+      ctx.shadowBlur = 8;
+      ctx.shadowOffsetY = 3;
 
-    // Belly Highlight
-    ctx.fillStyle = '#fef08a';
-    ctx.beginPath();
-    ctx.ellipse(-2, 3, 11, 7, 0, 0, Math.PI * 2);
-    ctx.fill();
+      // Circular clip mask for polished avatar look
+      ctx.beginPath();
+      ctx.arc(0, 0, this.drawSize / 2, 0, Math.PI * 2);
+      ctx.closePath();
+      ctx.clip();
 
-    // Wing
-    ctx.save();
-    ctx.translate(-5, 0);
-    ctx.rotate(this.wingAngle);
-    ctx.fillStyle = '#eab308';
-    ctx.beginPath();
-    ctx.ellipse(-2, 2, 8, 5, 0.2, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    ctx.restore();
+      ctx.drawImage(
+        playerImg,
+        -this.drawSize / 2,
+        -this.drawSize / 2,
+        this.drawSize,
+        this.drawSize
+      );
+      ctx.restore();
 
-    // Eye
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.arc(7, -5, 5, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
+      // Golden ring highlight around head
+      ctx.strokeStyle = '#facc15';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, this.drawSize / 2, 0, Math.PI * 2);
+      ctx.stroke();
 
-    // Pupil
-    ctx.fillStyle = '#0f172a';
-    ctx.beginPath();
-    ctx.arc(8.5, -5, 2, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Beak
-    ctx.fillStyle = '#f97316';
-    ctx.beginPath();
-    ctx.moveTo(11, -2);
-    ctx.lineTo(21, 1);
-    ctx.lineTo(11, 5);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
+    } else {
+      // Fallback
+      ctx.fillStyle = '#f97316';
+      ctx.beginPath();
+      ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
     ctx.restore();
   }
@@ -456,200 +592,105 @@ class Bird {
 
 // Instances
 const bg = new Background();
-const pipes = new PipesManager();
-const bird = new Bird();
+const obstacles = new RexonaObstacles();
+const player = new Player();
 
 function triggerGameOver() {
   if (currentState === STATE.GAMEOVER) return;
   currentState = STATE.GAMEOVER;
   screenShake = 16;
-  sound.playHit();
-  addParticles(bird.x, bird.y, 25, '#ef4444');
+  audio.playGameOver();
+  addParticles(player.x, player.y, 25, '#ef4444');
+
+  // Populate Scorecard Modal
+  finalScoreEl.textContent = score;
+  finalHighscoreEl.textContent = highScore;
+
+  if (isNewRecord && score > 0) {
+    newRecordTag.classList.remove('hidden');
+  } else {
+    newRecordTag.classList.add('hidden');
+  }
+
+  // Medals calculation
+  if (score >= 30) {
+    medalEmoji.textContent = '💎';
+    medalText.textContent = 'Diamond Legend!';
+  } else if (score >= 20) {
+    medalEmoji.textContent = '🥇';
+    medalText.textContent = 'Gold Master!';
+  } else if (score >= 10) {
+    medalEmoji.textContent = '🥈';
+    medalText.textContent = 'Silver Champ!';
+  } else if (score >= 5) {
+    medalEmoji.textContent = '🥉';
+    medalText.textContent = 'Bronze Runner!';
+  } else {
+    medalEmoji.textContent = '⚡';
+    medalText.textContent = 'Keep Trying!';
+  }
+
+  // Show Modal after short dramatic pause
+  setTimeout(() => {
+    gameoverModal.classList.remove('hidden');
+  }, 350);
 }
 
 function resetGame() {
   score = 0;
-  isNewHighScore = false;
-  bird.reset();
-  pipes.reset();
+  isNewRecord = false;
+  scoreCounter.textContent = '0';
+  player.reset();
+  obstacles.reset();
   particles = [];
+  gameoverModal.classList.add('hidden');
+  readyPrompt.classList.remove('hidden');
   currentState = STATE.READY;
 }
 
-// Interaction handling
+// Touch / Tap / Key Action
 function handleAction() {
-  sound.init();
+  audio.init();
 
   if (currentState === STATE.READY) {
     currentState = STATE.PLAYING;
-    bird.flap();
+    readyPrompt.classList.add('hidden');
+    audio.startBGM(); // Start continuous song in background!
+    player.flap();
   } else if (currentState === STATE.PLAYING) {
-    bird.flap();
-  } else if (currentState === STATE.GAMEOVER) {
-    resetGame();
+    player.flap();
   }
 }
 
 window.addEventListener('keydown', (e) => {
   if (e.code === 'Space' || e.code === 'ArrowUp') {
     e.preventDefault();
-    handleAction();
+    if (currentState !== STATE.GAMEOVER) {
+      handleAction();
+    }
   }
 });
 
 canvas.addEventListener('pointerdown', (e) => {
   e.preventDefault();
-  handleAction();
+  if (currentState !== STATE.GAMEOVER) {
+    handleAction();
+  }
 });
 
-// HUD & UI Drawing
-function drawScore() {
-  if (currentState === STATE.PLAYING) {
-    ctx.save();
-    ctx.font = '800 38px "Outfit", sans-serif';
-    ctx.fillStyle = '#ffffff';
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 5;
-    ctx.textAlign = 'center';
-    ctx.strokeText(score, CANVAS_WIDTH / 2, 80);
-    ctx.fillText(score, CANVAS_WIDTH / 2, 80);
-    ctx.restore();
-  }
-}
+restartBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  resetGame();
+  currentState = STATE.PLAYING;
+  readyPrompt.classList.add('hidden');
+  audio.startBGM();
+  player.flap();
+});
 
-function drawReadyScreen() {
-  if (currentState !== STATE.READY) return;
-
-  ctx.save();
-  ctx.textAlign = 'center';
-
-  // Title
-  ctx.font = '800 32px "Outfit", sans-serif';
-  ctx.fillStyle = '#facc15';
-  ctx.strokeStyle = '#000000';
-  ctx.lineWidth = 5;
-  ctx.strokeText('FLAPPY BIRD', CANVAS_WIDTH / 2, 160);
-  ctx.fillText('FLAPPY BIRD', CANVAS_WIDTH / 2, 160);
-
-  // Subtitle card
-  ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
-  ctx.roundRect(CANVAS_WIDTH / 2 - 120, 340, 240, 64, 12);
-  ctx.fill();
-
-  ctx.font = '600 16px "Outfit", sans-serif';
-  ctx.fillStyle = '#ffffff';
-  ctx.fillText('TAP OR PRESS SPACE', CANVAS_WIDTH / 2, 368);
-  ctx.font = '400 13px "Outfit", sans-serif';
-  ctx.fillStyle = '#94a3b8';
-  ctx.fillText('TO FLAP & FLY', CANVAS_WIDTH / 2, 390);
-
-  ctx.restore();
-}
-
-function drawGameOverCard() {
-  if (currentState !== STATE.GAMEOVER) return;
-
-  ctx.save();
-  ctx.textAlign = 'center';
-
-  // Game Over Header
-  ctx.font = '800 36px "Outfit", sans-serif';
-  ctx.fillStyle = '#f43f5e';
-  ctx.strokeStyle = '#000000';
-  ctx.lineWidth = 5;
-  ctx.strokeText('GAME OVER', CANVAS_WIDTH / 2, 150);
-  ctx.fillText('GAME OVER', CANVAS_WIDTH / 2, 150);
-
-  // Scoreboard Card
-  const cardX = CANVAS_WIDTH / 2 - 130;
-  const cardY = 185;
-  const cardW = 260;
-  const cardH = 170;
-
-  ctx.fillStyle = '#fef3c7';
-  ctx.strokeStyle = '#d97706';
-  ctx.lineWidth = 4;
-  ctx.roundRect(cardX, cardY, cardW, cardH, 16);
-  ctx.fill();
-  ctx.stroke();
-
-  // Score Labels
-  ctx.textAlign = 'left';
-  ctx.font = '600 14px "Outfit", sans-serif';
-  ctx.fillStyle = '#b45309';
-  ctx.fillText('SCORE', cardX + 24, cardY + 45);
-  ctx.fillText('BEST SCORE', cardX + 24, cardY + 105);
-
-  // Score Numbers
-  ctx.textAlign = 'right';
-  ctx.font = '800 28px "Outfit", sans-serif';
-  ctx.fillStyle = '#1e293b';
-  ctx.fillText(score, cardX + cardW - 24, cardY + 48);
-  ctx.fillText(highScore, cardX + cardW - 24, cardY + 108);
-
-  // New High Score badge
-  if (isNewHighScore && score > 0) {
-    ctx.fillStyle = '#ef4444';
-    ctx.font = '800 11px "Outfit", sans-serif';
-    ctx.fillText('NEW RECORD!', cardX + cardW - 24, cardY + 126);
-  }
-
-  // Medal
-  let medalColor = null;
-  if (score >= 30) medalColor = '#f59e0b'; // Gold
-  else if (score >= 20) medalColor = '#94a3b8'; // Silver
-  else if (score >= 10) medalColor = '#cd7f32'; // Bronze
-
-  if (medalColor) {
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(cardX + 60, cardY + 130, 16, 0, Math.PI * 2);
-    ctx.fillStyle = medalColor;
-    ctx.fill();
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = '#fff';
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  // Play Again Button
-  const btnY = 380;
-  ctx.fillStyle = '#22c55e';
-  ctx.strokeStyle = '#15803d';
-  ctx.lineWidth = 3;
-  ctx.roundRect(CANVAS_WIDTH / 2 - 85, btnY, 170, 48, 12);
-  ctx.fill();
-  ctx.stroke();
-
-  ctx.textAlign = 'center';
-  ctx.font = '800 18px "Outfit", sans-serif';
-  ctx.fillStyle = '#ffffff';
-  ctx.fillText('PLAY AGAIN', CANVAS_WIDTH / 2, btnY + 30);
-
-  ctx.restore();
-}
-
-// Polyfill roundRect for older canvas engines if needed
-if (!CanvasRenderingContext2D.prototype.roundRect) {
-  CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
-    if (w < 2 * r) r = w / 2;
-    if (h < 2 * r) r = h / 2;
-    this.beginPath();
-    this.moveTo(x + r, y);
-    this.arcTo(x + w, y, x + w, y + h, r);
-    this.arcTo(x + w, y + h, x, y + h, r);
-    this.arcTo(x, y + h, x, y, r);
-    this.arcTo(x, y, x + w, y, r);
-    this.closePath();
-    return this;
-  };
-}
-
-// Main Game Loop
+// Game Loop
 function loop() {
   ctx.save();
 
-  // Screen shake on hit
   if (screenShake > 0) {
     const dx = (Math.random() - 0.5) * screenShake;
     const dy = (Math.random() - 0.5) * screenShake;
@@ -658,22 +699,17 @@ function loop() {
     if (screenShake < 0.5) screenShake = 0;
   }
 
-  // Render & Updates
   bg.update();
   bg.draw();
 
-  pipes.update();
-  pipes.draw();
+  obstacles.update();
+  obstacles.draw();
 
-  bird.update();
-  bird.draw();
+  player.update();
+  player.draw();
 
   updateParticles();
   drawParticles();
-
-  drawScore();
-  drawReadyScreen();
-  drawGameOverCard();
 
   ctx.restore();
 
@@ -681,5 +717,4 @@ function loop() {
   requestAnimationFrame(loop);
 }
 
-// Boot up game loop
 requestAnimationFrame(loop);

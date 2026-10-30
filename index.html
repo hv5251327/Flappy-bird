@@ -2,20 +2,67 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Flappy Bird Online</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Flappy Bird - Custom Edition</title>
   <link rel="stylesheet" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 </head>
 <body>
   <div id="game-wrapper">
-    <div id="game-container">
-      <canvas id="game-canvas" width="360" height="600"></canvas>
-      <div id="mobile-hint">Tap screen or press [SPACE] to flap</div>
+    <!-- Top HUD Bar -->
+    <div id="top-bar">
+      <div id="score-counter">0</div>
+      <div class="top-controls">
+        <button id="music-btn" class="ctrl-btn" aria-label="Toggle Music" title="Toggle Music">🎵</button>
+      </div>
     </div>
+
+    <!-- Game Canvas -->
+    <canvas id="game-canvas"></canvas>
+
+    <!-- Start / Ready Screen Prompt -->
+    <div id="ready-prompt">
+      <div class="ready-banner">TAP TO FLY</div>
+      <div class="ready-sub">Dodge the Rexona Roll-ons!</div>
+    </div>
+
+    <!-- Game Over Pop-up Scorecard Modal -->
+    <div id="gameover-modal" class="modal-backdrop hidden">
+      <div class="modal-card">
+        <div class="gameover-heading">GAME OVER</div>
+        
+        <div class="medal-slot" id="medal-slot">
+          <div id="medal-emoji">🏆</div>
+          <span id="medal-text">Great Run!</span>
+        </div>
+
+        <div class="stats-row">
+          <div class="stat-box">
+            <span class="stat-label">SCORE</span>
+            <span class="stat-number" id="card-score">0</span>
+          </div>
+          <div class="stat-divider"></div>
+          <div class="stat-box">
+            <span class="stat-label">BEST</span>
+            <span class="stat-number" id="card-highscore">0</span>
+          </div>
+        </div>
+
+        <div id="new-record-tag" class="record-tag hidden">🔥 NEW RECORD!</div>
+
+        <button id="restart-button" class="btn-restart">
+          <span>PLAY AGAIN</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Audio Elements for Custom Files -->
+    <audio id="audio-bgm" src="assets/bgm.mp3" loop preload="auto"></audio>
+    <audio id="audio-gameover" src="assets/gameover.mp3" preload="auto"></audio>
   </div>
+
   <script src="game.js"></script>
 </body>
 </html>
