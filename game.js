@@ -120,10 +120,9 @@ class AudioManager {
     this.stopBGM();
     if (this.isMuted) return;
 
-    // Check if custom game over audio exists, otherwise play synthesizer fail jingle
-    if (gameoverAudio && gameoverAudio.src && !gameoverAudio.error) {
+    if (gameoverAudio) {
       gameoverAudio.currentTime = 0;
-      gameoverAudio.volume = 0.85;
+      gameoverAudio.volume = 0.9;
       gameoverAudio.play().catch(() => this.playSynthGameOver());
     } else {
       this.playSynthGameOver();
