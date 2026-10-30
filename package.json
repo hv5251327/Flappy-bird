@@ -1,0 +1,17 @@
+{
+  "name": "flappy-bird-game",
+  "version": "1.0.0",
+  "description": "Flappy Bird Web Game ready to deploy on Render or GitHub Pages",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [
+    "flappy-bird",
+    "game",
+    "canvas",
+    "html5"
+  ],
+  "author": "",
+  "license": "MIT"
+}
