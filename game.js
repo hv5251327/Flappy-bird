@@ -61,6 +61,11 @@ class AudioManager {
     if (bgmAudio) {
       bgmAudio.volume = 0.85;
       bgmAudio.loop = true;
+      bgmAudio.load();
+    }
+    if (gameoverAudio) {
+      gameoverAudio.volume = 0.9;
+      gameoverAudio.load();
     }
   }
 
@@ -79,11 +84,24 @@ class AudioManager {
     this.init();
 
     if (bgmAudio) {
-      bgmAudio.play().then(() => {
-        this.isPlayingMusic = true;
-      }).catch((err) => {
-        console.log('Audio autoplay blocked until direct interaction:', err);
-      });
+      const tryPlay = () => {
+        bgmAudio.play().then(() => {
+          this.isPlayingMusic = true;
+        }).catch((err) => {
+          console.log('BGM play waiting for user gesture:', err);
+        });
+      };
+
+      if (bgmAudio.readyState >= 2) {
+        tryPlay();
+      } else {
+        bgmAudio.addEventListener('canplay', () => {
+          if (!this.isMuted && currentState === STATE.PLAYING && bgmAudio.paused) {
+            tryPlay();
+          }
+        }, { once: true });
+        tryPlay();
+      }
     }
   }
 
@@ -596,6 +614,15 @@ function resetGame() {
   currentState = STATE.READY;
 }
 
+// Early Audio Unlock for Mobile Browsers
+const unlockAllAudio = () => {
+  if (bgmAudio) bgmAudio.load();
+  audio.init();
+};
+window.addEventListener('pointerdown', unlockAllAudio, { once: true });
+window.addEventListener('touchstart', unlockAllAudio, { once: true, passive: true });
+window.addEventListener('click', unlockAllAudio, { once: true });
+
 // Action Trigger (Touch / Space / Click)
 function handleAction() {
   audio.init();
@@ -603,9 +630,13 @@ function handleAction() {
   if (currentState === STATE.READY) {
     currentState = STATE.PLAYING;
     readyPrompt.classList.add('hidden');
-    audio.startBGM(); // Starts continuous background music!
+    audio.startBGM(); // Start background music on initial tap
     player.flap();
   } else if (currentState === STATE.PLAYING) {
+    // If browser deferred audio on the first tap, resume immediately on next tap
+    if (bgmAudio && bgmAudio.paused && !audio.isMuted) {
+      audio.startBGM();
+    }
     player.flap();
   }
 }
@@ -619,12 +650,18 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
-canvas.addEventListener('pointerdown', (e) => {
-  e.preventDefault();
+const onPointerAction = (e) => {
   if (currentState !== STATE.GAMEOVER) {
     handleAction();
   }
-});
+};
+
+canvas.addEventListener('pointerdown', onPointerAction);
+canvas.addEventListener('touchstart', (e) => {
+  // Prevent double trigger if pointerdown already fired
+  if (e.cancelable) e.preventDefault();
+  onPointerAction(e);
+}, { passive: false });
 
 restartBtn.addEventListener('click', (e) => {
   e.stopPropagation();

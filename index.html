@@ -59,14 +59,8 @@
     </div>
 
     <!-- Audio Elements for Custom Files -->
-    <audio id="audio-bgm" loop preload="auto">
-      <source src="assets/bgm.m4a" type="audio/mp4">
-      <source src="assets/bgm.mp3" type="audio/mpeg">
-    </audio>
-    <audio id="audio-gameover" preload="auto">
-      <source src="assets/gameover.m4a" type="audio/mp4">
-      <source src="assets/gameover.mp3" type="audio/mpeg">
-    </audio>
+    <audio id="audio-bgm" src="assets/bgm.m4a" loop preload="auto" playsinline webkit-playsinline></audio>
+    <audio id="audio-gameover" src="assets/gameover.m4a" preload="auto" playsinline webkit-playsinline></audio>
   </div>
 
   <script src="game.js"></script>
