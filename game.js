@@ -258,7 +258,7 @@ class DarkBackground {
     });
 
     if (currentState !== STATE.GAMEOVER) {
-      this.groundX = (this.groundX - 2.5) % 24;
+      this.groundX = (this.groundX - 1.65) % 24;
     }
   }
 
@@ -316,13 +316,14 @@ class DarkBackground {
   }
 }
 
-// Nivea Roll-On Obstacles (Without Cap - Roller Ball Exposed)
+// Nivea Roll-On Obstacles (Without Cap - Proportional & Balanced)
 class NiveaObstacles {
   constructor() {
     this.items = [];
-    this.bottleWidth = 62;
-    this.gap = 145; // comfortable gap for mobile
-    this.spawnRate = 110;
+    this.bottleWidth = 54;
+    this.gap = 185; // Wide, friendly gap for fun mobile play
+    this.spawnRate = 140; // Plenty of breathing room between obstacles
+    this.speed = 1.65; // Balanced, smooth arcade scrolling speed
   }
 
   reset() {
@@ -333,8 +334,8 @@ class NiveaObstacles {
     if (currentState !== STATE.PLAYING) return;
 
     if (frames % this.spawnRate === 0) {
-      const minTop = 60;
-      const maxTop = GROUND_Y - this.gap - 60;
+      const minTop = 70;
+      const maxTop = GROUND_Y - this.gap - 70;
       const topHeight = Math.floor(Math.random() * (maxTop - minTop + 1)) + minTop;
       this.items.push({
         x: CANVAS_WIDTH,
@@ -345,7 +346,7 @@ class NiveaObstacles {
 
     for (let i = this.items.length - 1; i >= 0; i--) {
       const p = this.items[i];
-      p.x -= 2.4;
+      p.x -= this.speed;
 
       // Scoring
       if (!p.passed && p.x + this.bottleWidth < player.x) {
@@ -361,12 +362,12 @@ class NiveaObstacles {
         }
       }
 
-      // Hitbox Collision Detection (Fair collision bounds)
+      // Forgiving circular/box hitbox
       const pBox = {
-        left: player.x - player.radius + 4,
-        right: player.x + player.radius - 4,
-        top: player.y - player.radius + 4,
-        bottom: player.y + player.radius - 4
+        left: player.x - player.radius,
+        right: player.x + player.radius,
+        top: player.y - player.radius,
+        bottom: player.y + player.radius
       };
 
       const hitTop = pBox.right > p.x && pBox.left < p.x + this.bottleWidth && pBox.top < p.top;
@@ -388,47 +389,82 @@ class NiveaObstacles {
       const bottomY = p.top + this.gap;
       const bottomHeight = GROUND_Y - bottomY;
 
-      // Top Nivea bottle: Inverted so exposed roller ball faces downwards into the gap
-      this.drawNiveaBottle(p.x, 0, this.bottleWidth, p.top, true);
+      // Top Obstacle: inverted Nivea bottle with roller ball at the gap edge
+      this.drawNiveaTop(p.x, p.top, this.bottleWidth);
 
-      // Bottom Nivea bottle: Upright so exposed roller ball faces upwards into the gap
-      this.drawNiveaBottle(p.x, bottomY, this.bottleWidth, bottomHeight, false);
+      // Bottom Obstacle: upright Nivea bottle with roller ball at the gap edge
+      this.drawNiveaBottom(p.x, bottomY, this.bottleWidth, bottomHeight);
     });
   }
 
-  drawNiveaBottle(x, y, w, h, isTop) {
+  drawNiveaTop(x, topY, w) {
     ctx.save();
+    const naturalH = Math.round(w * 2.5); // ~135px realistic bottle height
+    const bottleH = Math.min(topY, naturalH);
+
+    // Support rod above bottle if there is extra ceiling space
+    if (topY > naturalH) {
+      const rodH = topY - naturalH;
+      ctx.fillStyle = '#0f172a';
+      ctx.strokeStyle = '#1e293b';
+      ctx.lineWidth = 2;
+      ctx.fillRect(x + 10, 0, w - 20, rodH);
+      ctx.strokeRect(x + 10, 0, w - 20, rodH);
+    }
+
     if (isNiveaLoaded) {
-      if (isTop) {
-        // Invert vertically so roller ball points down towards the gap
-        ctx.translate(x + w, y + h);
-        ctx.scale(-1, -1);
-        ctx.drawImage(niveaImg, 0, 0, w, h);
-      } else {
-        // Upright so roller ball points up towards the gap
-        ctx.drawImage(niveaImg, x, y, w, h);
-      }
+      // Invert vertically so exposed roller ball faces downwards right at topY
+      ctx.translate(x + w, topY);
+      ctx.scale(-1, -1);
+      ctx.drawImage(niveaImg, 0, 0, w, bottleH);
     } else {
       ctx.fillStyle = '#1e3a8a';
-      ctx.fillRect(x, y, w, h);
+      ctx.fillRect(x, 0, w, topY);
     }
+    ctx.restore();
+  }
+
+  drawNiveaBottom(x, bottomY, w, totalH) {
+    ctx.save();
+    const naturalH = Math.round(w * 2.5); // ~135px realistic bottle height
+    const bottleH = Math.min(totalH, naturalH);
+
+    if (isNiveaLoaded) {
+      // Upright so roller ball is right at bottomY pointing up
+      ctx.drawImage(niveaImg, x, bottomY, w, bottleH);
+    } else {
+      ctx.fillStyle = '#1e3a8a';
+      ctx.fillRect(x, bottomY, w, bottleH);
+    }
+
+    // Support rod below bottle down to ground if there is extra space
+    if (totalH > naturalH) {
+      const rodY = bottomY + naturalH;
+      const rodH = GROUND_Y - rodY;
+      ctx.fillStyle = '#0f172a';
+      ctx.strokeStyle = '#1e293b';
+      ctx.lineWidth = 2;
+      ctx.fillRect(x + 10, rodY, w - 20, rodH);
+      ctx.strokeRect(x + 10, rodY, w - 20, rodH);
+    }
+
     ctx.restore();
   }
 }
 
-// Player (Natural Face Avatar - NOT Compressed into Circle, NO Outline)
+// Player (Natural Face Avatar - Balanced Physics & Forgiving Hitbox)
 class Player {
   constructor() {
     this.x = 90;
     this.y = 280;
     this.velocity = 0;
-    this.gravity = 0.28;
-    this.jump = -5.5;
-    this.radius = 20; // collision radius
+    this.gravity = 0.22; // Gentler, smoother gravity
+    this.jump = -4.6; // Comfortable, controllable hop
+    this.radius = 15; // Forgiving collision hitbox
     
-    // Natural aspect ratio (image is 694x1013 ~ 0.685)
-    this.displayHeight = 58;
-    this.displayWidth = 40;
+    // Proportional dimensions (uncompressed face)
+    this.displayHeight = 52;
+    this.displayWidth = 36;
     this.rotation = 0;
   }
 
@@ -441,13 +477,11 @@ class Player {
 
   flap() {
     this.velocity = this.jump;
-    // Flap sound remains removed!
-    addParticles(this.x - 10, this.y + 12, 3, '#94a3b8');
+    addParticles(this.x - 8, this.y + 10, 3, '#94a3b8');
   }
 
   update() {
     if (currentState === STATE.READY) {
-      // Gentle idle floating
       this.y = 270 + Math.sin(frames * 0.08) * 8;
       this.rotation = 0;
       return;
@@ -456,11 +490,11 @@ class Player {
     this.velocity += this.gravity;
     this.y += this.velocity;
 
-    // Natural tilt physics
+    // Smooth tilt
     if (this.velocity < 0) {
       this.rotation = Math.max(-0.35, this.velocity * 0.06);
     } else {
-      this.rotation = Math.min(Math.PI / 2.6, (this.velocity - 2) * 0.09);
+      this.rotation = Math.min(Math.PI / 2.8, (this.velocity - 2) * 0.08);
     }
 
     // Ground collision
